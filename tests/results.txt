@@ -1,0 +1,6 @@
+--- Starting Logic Verification ---
+PASS: Scenario A (Normal Operation)
+PASS: Scenario B (Abandonment)
+PASS: Scenario C (Overcrowding)
+PASS: Scenario D (Phone inside ROI)
+PASS: Scenario E (Phone outside ROI)

@@ -1,0 +1,15 @@
+# Requisitos Base
+PyQt6
+opencv-python
+ultralytics
+numpy
+requests
+
+# Seguridad
+argon2-cffi
+
+# Opcional / Sistema
+# pyarmor
+
+# Hardware (Instalación Manual Recomendada para GPU)
+# piper install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
