@@ -65,6 +65,12 @@ class Settings:
 
             # ROI (default empty — always initialized to avoid AttributeError)
             self.roi_coords = []
+
+            # Telegram notifications
+            # Override via env vars TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID,
+            # or persist through the Config dialog (stored in DB).
+            self.telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+            self.telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
             
             # We'll skip loading from DB here to avoid the cycle during __init__.
             # We can load them later or just assume 'update' pushes to DB, 
@@ -132,7 +138,7 @@ class Settings:
 
             
             val = db.get_settings("rtsp_url")
-            if val: 
+            if val:
                 # Try to cast to int if it's a digit (webcam index)
                 if val.isdigit():
                     self.rtsp_url = int(val)
@@ -146,7 +152,16 @@ class Settings:
                     self.roi_coords = ast.literal_eval(val)
                 except:
                     pass
-                    
+
+            # Telegram credentials stored in DB take precedence over env vars
+            val = db.get_settings("telegram_token")
+            if val:
+                self.telegram_token = val
+
+            val = db.get_settings("telegram_chat_id")
+            if val:
+                self.telegram_chat_id = val
+
         except Exception as e:
             print(f"Failed to sync settings from DB: {e}")
 

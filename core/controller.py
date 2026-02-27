@@ -61,9 +61,14 @@ class SystemController(QObject):
     def process_frame(self, frame):
         if not self.monitoring_active:
             return
+
+        # Share raw frame with LogicWorker for evidence screenshot capture.
+        # Simple attribute write is safe under the CPython GIL for a prototype.
+        self.logic_worker.last_frame = frame
+
         # Enviar frame procesado a la UI
         self.frame_signal.emit(frame)
-        
+
         # Enviar frame a detección
         if self.detection_worker and self.detection_worker.is_running:
             self.detection_worker.add_frame(frame)

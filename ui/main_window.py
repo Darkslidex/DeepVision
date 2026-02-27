@@ -232,11 +232,49 @@ class ConfigDialog(QDialog):
         self.layout.addWidget(self.fatigue_group)
 
         self.layout.addLayout(form_layout)
-        
+
+        # --- 6. Telegram Notifications ---
+        from PyQt6.QtWidgets import QGroupBox
+        self.telegram_group = QGroupBox("Notificaciones Telegram")
+        telegram_layout = QFormLayout()
+
+        self.telegram_token_input = QLineEdit()
+        self.telegram_token_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.telegram_token_input.setPlaceholderText("123456789:ABCdef...")
+        self.telegram_token_input.setText(getattr(self.settings, "telegram_token", ""))
+        telegram_layout.addRow("Bot Token:", self.telegram_token_input)
+
+        self.telegram_chat_id_input = QLineEdit()
+        self.telegram_chat_id_input.setPlaceholderText("-100123456789")
+        self.telegram_chat_id_input.setText(getattr(self.settings, "telegram_chat_id", ""))
+        telegram_layout.addRow("Chat ID:", self.telegram_chat_id_input)
+
+        test_telegram_btn = QPushButton("▶ Probar Conexión")
+        test_telegram_btn.clicked.connect(self.test_telegram)
+        telegram_layout.addRow(test_telegram_btn)
+
+        self.telegram_group.setLayout(telegram_layout)
+        self.layout.addWidget(self.telegram_group)
+
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.save_and_accept)
         buttons.rejected.connect(self.reject)
         self.layout.addWidget(buttons)
+
+    def test_telegram(self):
+        """Sends a test message via the credentials currently typed in the dialog."""
+        from services.telegram import TelegramService
+        token = self.telegram_token_input.text().strip()
+        chat_id = self.telegram_chat_id_input.text().strip()
+        svc = TelegramService(token=token, chat_id=chat_id)
+        if not svc.is_configured():
+            QMessageBox.warning(self, "Telegram", "Token o Chat ID inválido.\nRevisa los valores ingresados.")
+            return
+        ok = svc.send_test_message()
+        if ok:
+            QMessageBox.information(self, "Telegram", "✅ Mensaje de prueba enviado correctamente.")
+        else:
+            QMessageBox.critical(self, "Telegram", "❌ Error al enviar.\nVerifica el token y el Chat ID.")
 
     def on_direct_alert_toggled(self, checked):
         if checked:
@@ -299,10 +337,14 @@ class ConfigDialog(QDialog):
             fatigue_pol = "critical"
         self.settings.update("fatigue_policy", fatigue_pol)
         
+        # Save Telegram credentials
+        self.settings.update("telegram_token", self.telegram_token_input.text().strip())
+        self.settings.update("telegram_chat_id", self.telegram_chat_id_input.text().strip())
+
         # Config changed notification (no restart needed for video here anymore)
         if self.parent() and hasattr(self.parent(), 'on_config_changed'):
             self.parent().on_config_changed(restart_video=False)
-        
+
         self.accept()
 
     def clear_layout(self):

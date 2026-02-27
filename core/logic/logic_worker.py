@@ -53,6 +53,9 @@ class LogicWorker(BaseWorker):
         self.last_inactivity_centroid = None
         self.last_movement_time = time.time()
 
+        # Evidence capture: set by SystemController on every frame received
+        self.last_frame = None
+
         # Aforo
         self.aforo_violation_start = None
 
@@ -91,22 +94,60 @@ class LogicWorker(BaseWorker):
         self.cell_status_signal.emit(0.0, 0.0)
         self.aforo_status_signal.emit(0, self.settings.max_people)
 
+    def _save_evidence(self, type_str: str):
+        """
+        Saves self.last_frame to data/evidence/ as a JPEG screenshot.
+        Returns the file path on success, or None if unavailable.
+        """
+        if self.last_frame is None:
+            return None
+        try:
+            import os
+            import cv2
+            import datetime as _dt
+
+            evidence_dir = os.path.join("data", "evidence")
+            os.makedirs(evidence_dir, exist_ok=True)
+
+            ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_type = type_str.replace(" ", "_").upper()
+            filename = f"{ts}_{safe_type}.jpg"
+            path = os.path.join(evidence_dir, filename)
+
+            cv2.imwrite(path, self.last_frame)
+            self.logger.info(f"Evidence saved: {path}")
+            return path
+        except Exception as exc:
+            self.logger.error(f"Failed to save evidence: {exc}")
+            return None
+
     def handle_alarm(self, level, type_str, message):
         """
         Central Incident Manager.
-        Decides whether to notify the supervisor or just warn locally (Blocking).
+        Captures an evidence screenshot, persists the event to the DB,
+        then decides whether to notify the supervisor or warn locally (Blocking).
         """
         current_time = time.time()
 
+        # Capture evidence screenshot for this alarm event
+        evidence_path = self._save_evidence(type_str)
+
+        # Persist event to SQLite regardless of notification mode
+        try:
+            from data.db import DBManager
+            DBManager().log_event(level, type_str, message, evidence_path)
+        except Exception as exc:
+            self.logger.warning(f"Could not log event to DB: {exc}")
+
         # 0. CRITICAL OVERRIDE (Weapons) — bypass all warning logic
         if type_str == "ARMA":
-            self.notifier.send_alert("CRITICAL", type_str, message)
+            self.notifier.send_alert("CRITICAL", type_str, message, evidence_path)
             self.alarm_signal.emit("CRITICAL", type_str, message)
             return
 
         # 1. Direct Alert mode: always notify supervisor immediately
         if getattr(self.settings, 'notification_direct_alert', False):
-            self.notifier.send_alert(level, type_str, message)
+            self.notifier.send_alert(level, type_str, message, evidence_path)
             self.alarm_signal.emit(level, type_str, message)
             return
 
@@ -130,7 +171,7 @@ class LogicWorker(BaseWorker):
         else:
             # CASE B: No lives → CRITICAL ESCALATION (Notification to supervisor)
             full_msg = f"{message} (Escalado por {self.current_warnings} advertencias)"
-            self.notifier.send_alert("CRITICAL", type_str, full_msg)
+            self.notifier.send_alert("CRITICAL", type_str, full_msg, evidence_path)
             self.alarm_signal.emit("CRITICAL", "ESCALADO", full_msg)
 
     @pyqtSlot(str)

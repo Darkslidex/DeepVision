@@ -2,6 +2,26 @@
 
 Todos los cambios notables en este proyecto serán documentados en este archivo.
 
+## [0.9.0] - 2026-02-27
+
+### ✨ Agregado (Added)
+- **Notificaciones Telegram**: Integración completa con la Telegram Bot API (`services/telegram.py`).
+  - Nuevo servicio `TelegramService` con `send_message()`, `send_photo()` y `send_test_message()`.
+  - Instrucciones de configuración incluidas en el docstring del módulo (BotFather → token → Chat ID).
+- **Captura de Evidencia**: Cada alarma genera automáticamente una captura JPEG del frame activo.
+  - Las imágenes se guardan en `data/evidence/<timestamp>_<TIPO>.jpg`.
+  - La foto se adjunta al mensaje de Telegram cuando está disponible (fallback a texto si no).
+- **Persistencia de Alertas en DB**: `handle_alarm()` ahora registra cada evento en la tabla `events` de SQLite con `level`, `event_type`, `message` y `evidence_path`.
+- **Configuración Telegram en la UI**: Nuevo grupo "Notificaciones Telegram" en `ConfigDialog` con campos para Bot Token (oculto) y Chat ID, más un botón **▶ Probar Conexión** que valida las credenciales sin necesidad de reiniciar.
+- **Credenciales por variable de entorno**: Se pueden preconfiguar con `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`; los valores guardados en la DB tienen prioridad.
+
+### 🔧 Modificado (Changed)
+- **`NotificationService.send_alert()`**: Firma extendida con parámetro `evidence_path=None`. Ahora delega en `TelegramService` en lugar de imprimir a consola.
+- **`LogicWorker.handle_alarm()`**: Captura screenshot → loguea en DB → envía a Telegram antes de emitir señales de UI. El parámetro `evidence_path` se propaga a todas las rutas de notificación.
+- **`SystemController.process_frame()`**: Asigna `self.logic_worker.last_frame = frame` en cada frame recibido para alimentar la captura de evidencia (seguro bajo el GIL de CPython).
+
+---
+
 ## [0.8.1] - 2026-02-27
 
 ### 🔒 Seguridad (Security)
