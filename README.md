@@ -29,6 +29,13 @@
 - **Alertas Multinivel**: Clasificación de eventos en `WARNING`, `ALARM` y `CRITICAL`.
 - **Detección de Armas**: Alerta inmediata y crítica ante la detección de objetos peligrosos (cuchillos/tijeras).
 
+### 📲 Notificaciones Telegram
+- **Alerta con Foto**: Cada alarma escalada envía al supervisor una captura del frame activo junto con nivel, tipo y timestamp.
+- **Fallback a texto**: Si el frame no está disponible, se envía el mensaje sin imagen.
+- **Bot Token + Chat ID**: Configurables desde la UI sin reiniciar la aplicación.
+- **Evidencia persistente**: Las capturas se guardan localmente en `data/evidence/<timestamp>_<TIPO>.jpg` y se registran en la base de datos con su ruta.
+- **Prueba de conexión**: Botón **▶ Probar Conexión** en el diálogo de configuración para validar las credenciales antes de entrar en producción.
+
 ### 🖥️ Interfaz de Usuario Industrial
 - Dashboard en modo oscuro ("Industrial Dark Mode") para reducir la fatiga visual.
 - **Video Overlay Dinámico**: Visualización de cajas delimitadoras con código de colores.
@@ -89,6 +96,42 @@ python main.py
 
 ---
 
+## 📲 Configuración de Telegram
+
+> Setup único de ~5 minutos. Una vez configurado, cada alarma escalada llega como mensaje con foto al chat del supervisor.
+
+### Paso 1 — Crear el bot
+1. Abre Telegram y busca **@BotFather**.
+2. Envía `/newbot`, elige nombre y usuario.
+3. Copia el **token** que te entrega (formato `123456789:ABCdef...`).
+
+### Paso 2 — Obtener tu Chat ID
+1. Manda cualquier mensaje a tu bot recién creado.
+2. Abre en el navegador:
+   ```
+   https://api.telegram.org/bot<TOKEN>/getUpdates
+   ```
+3. Copia el campo `"id"` dentro de `"chat"` — ese es tu **Chat ID**.
+
+### Paso 3 — Configurar en DeepVision
+
+**Opción A — Variable de entorno (recomendado para producción):**
+```bash
+set TELEGRAM_BOT_TOKEN=123456789:ABCdef...
+set TELEGRAM_CHAT_ID=987654321
+python main.py
+```
+
+**Opción B — Desde la UI:**
+1. Abre **⚙ Configuración** → ingresa contraseña de administrador.
+2. En la sección **Notificaciones Telegram**, pega el token y el Chat ID.
+3. Haz clic en **▶ Probar Conexión** — deberías recibir un mensaje de prueba en Telegram.
+4. Guarda. Las credenciales quedan persistidas en la base de datos.
+
+> 💡 Las credenciales de la base de datos tienen prioridad sobre las variables de entorno. Si cambias el token desde la UI, no necesitas modificar el entorno.
+
+---
+
 ## 🔒 Seguridad
 
 ### Contraseña de administrador
@@ -113,29 +156,30 @@ python main.py
 ```
 DeepVision/
 ├── config/
-│   └── settings.py         # Configuración Singleton (defaults + sync desde DB)
+│   └── settings.py              # Configuración Singleton (defaults + sync desde DB)
 ├── core/
 │   ├── ai/
 │   │   ├── detection_worker.py  # YOLOv11 (personas, celulares, armas)
 │   │   └── biometric_worker.py  # MediaPipe (EAR/MAR — en desarrollo)
 │   ├── logic/
-│   │   ├── logic_worker.py      # Lógica de negocio y alarmas
-│   │   └── leaky_bucket.py      # Algoritmo Leaky Bucket (disponible)
+│   │   ├── logic_worker.py      # Lógica de negocio, alarmas y captura de evidencia
+│   │   └── leaky_bucket.py      # Algoritmo Leaky Bucket
 │   ├── controller.py            # Orquestador del sistema
-│   ├── notification_service.py  # Servicio de notificaciones (stub)
+│   ├── notification_service.py  # Dispatcher de notificaciones (Telegram)
 │   └── worker.py                # BaseWorker (ciclo de vida de hilos)
 ├── data/
-│   └── db.py               # DBManager SQLite (Singleton, thread-safe)
+│   ├── db.py                    # DBManager SQLite (Singleton, thread-safe)
+│   └── evidence/                # Capturas JPEG generadas automáticamente por alarma
 ├── services/
-│   └── whatsapp.py         # Integración WhatsApp Cloud API (stub)
+│   └── telegram.py              # TelegramService — Bot API (sendMessage / sendPhoto)
 ├── ui/
-│   ├── main_window.py      # Ventana principal, diálogos y dashboard
-│   └── overlay.py          # Widget de superposición de video y ROI
+│   ├── main_window.py           # Ventana principal, diálogos y dashboard
+│   └── overlay.py               # Widget de superposición de video y ROI
 ├── assets/
-│   └── models/             # Modelos YOLO (.pt)
-├── main.py                 # Punto de entrada
-├── check_environment.py    # Diagnóstico de entorno
-└── setup_deepvision.ps1    # Instalación automática (Windows)
+│   └── models/                  # Modelos YOLO (.pt)
+├── main.py                      # Punto de entrada
+├── check_environment.py         # Diagnóstico de entorno
+└── setup_deepvision.ps1         # Instalación automática (Windows)
 ```
 
 ---
