@@ -46,7 +46,6 @@ def main():
     
     # 3. Logs & Alarms
     controller.log_signal.connect(lambda msg: window.log_event("SISTEMA", msg))
-    controller.log_signal.connect(lambda msg: window.log_event("SISTEMA", msg))
     controller.alarm_signal.connect(window.handle_alarm)
     controller.bucket_status_signal.connect(window.update_bucket_status)
 

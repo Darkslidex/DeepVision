@@ -1,7 +1,5 @@
 import os
-from dataclasses import dataclass
 
-@dataclass
 class Settings:
     _instance = None
 
@@ -64,6 +62,9 @@ class Settings:
             # Fatigue Detection (New)
             self.enable_fatigue = False
             self.fatigue_policy = "warning" # 'warning' (lives) or 'critical' (immediate)
+
+            # ROI (default empty — always initialized to avoid AttributeError)
+            self.roi_coords = []
             
             # We'll skip loading from DB here to avoid the cycle during __init__.
             # We can load them later or just assume 'update' pushes to DB, 

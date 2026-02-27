@@ -1,6 +1,7 @@
 import sqlite3
 import logging
 import os
+import hashlib
 from datetime import datetime
 from threading import Lock
 from config.settings import Settings
@@ -91,6 +92,18 @@ class DBManager:
                     )
                 ''')
                 
+                # Seed default admin password hash if not already present.
+                # Default password is read from env var ADMIN_PASSWORD (fallback: "admin123").
+                # Stored as SHA-256 hex digest so plaintext is never in the DB.
+                cursor.execute("SELECT value FROM settings WHERE key = 'admin_password_hash'")
+                if not cursor.fetchone():
+                    default_password = os.getenv("ADMIN_PASSWORD", "admin123")
+                    default_hash = hashlib.sha256(default_password.encode("utf-8")).hexdigest()
+                    cursor.execute(
+                        "INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)",
+                        (default_hash,)
+                    )
+
                 conn.commit()
                 conn.close()
                 self.logger.info("Database initialized successfully.")

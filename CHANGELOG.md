@@ -2,6 +2,35 @@
 
 Todos los cambios notables en este proyecto serán documentados en este archivo.
 
+## [0.8.1] - 2026-02-27
+
+### 🔒 Seguridad (Security)
+- **Contraseña de administrador hasheada**: La contraseña ya no se compara en texto plano. Ahora se almacena como digest SHA-256 en la base de datos y se configura mediante la variable de entorno `ADMIN_PASSWORD` (fallback: `admin123`). El texto plano nunca reside en el código fuente.
+- **Eliminado decorador `@dataclass` de `Settings`**: Era incompatible con el patrón Singleton y podía generar un `__init__` con comportamiento inesperado.
+
+### 🐛 Corregido (Fixed)
+- **Política "Strict" de celular nunca disparaba**: El timer `cell_time_continuous` se incrementaba solo dentro del bloque `elif continuous`, por lo que la política estricta siempre leía 0. El timer ahora se actualiza antes del bloque `if/elif` de política, compartido entre `strict` y `continuous`.
+- **`log_signal` conectado dos veces**: Se eliminó la conexión duplicada en `main.py` que causaba que cada mensaje de log apareciera dos veces en la tabla de eventos.
+- **`set_roi` con condición imposible**: `len(roi_points) < 0` nunca podía ser verdadero. Corregido a `len(roi_points) < 3` (mínimo de puntos para un polígono válido). Con 1 ó 2 puntos ahora se limpia el ROI en lugar de crear un polígono inválido.
+- **`show_blocking_warning` lógica contradictoria**: El bloque `if hasattr(self, 'controller')` nunca se ejecutaba (`MainWindow` no tiene esa referencia directa), y en el `else` el estilo del botón ROI se modificaba incorrectamente. Simplificado al único flujo correcto: `self.warning_accepted_signal.emit(warning_type)`.
+- **`setup_ui` definido dos veces**: Se eliminó el stub incompleto (línea ~523) que Python ignoraba en favor de la definición real.
+- **`roi_coords` sin valor por defecto**: El atributo no se inicializaba en `load_config()`, causando `AttributeError` en cualquier acceso previo a la primera sincronización con DB. Ahora se inicializa con `[]`.
+- **`VideoThread.stop()` podía bloquear la UI indefinidamente**: Si la cámara se colgaba en `cap.read()`, el hilo principal quedaba congelado. `BaseWorker.stop()` ahora usa `wait(5000)` y fuerza `terminate()` si el hilo no responde en 5 segundos.
+
+### 🧹 Calidad de Código (Chores)
+- **Eliminados todos los `print` de debug de producción**:
+  - `core/worker.py`: `"🚀 [DEBUG] EL WORKER HA ARRANCADO..."`
+  - `core/ai/detection_worker.py`: ~90 prints por segundo en el loop de inferencia (`[DEBUG] Processing Frame`, `[DEBUG] Raw Detections`, `[DEBUG] ¡LA IA NO VE NADA!`)
+  - `core/logic/logic_worker.py`: `"DEBUG: Resuming from warning..."`
+  - `ui/main_window.py`: `"DEBUG: ROI Mapped..."` y `"WARNING: No frame size known..."`
+  - Los `print` de UI reemplazados por llamadas al logger (`logging.getLogger("DeepVision.UI")`)
+- **Imports movidos al top del módulo**: `import time`, `import math`, `import traceback` ya no se importan dentro de métodos en bucles calientes.
+- **`winsound` import condicional**: Deja de causar `ImportError` en Linux/macOS. Se usa la bandera `WINSOUND_AVAILABLE` para proteger todas las llamadas a `Beep()`.
+- **Atributos de debounce inicializados en `__init__`**: `last_cell_alert`, `last_aforo_alert`, `last_weapon_alert`, `last_fatigue_alert`, `last_inactivity_alert` y `sleep_time` ahora se declaran explícitamente en `LogicWorker.__init__`, eliminando el uso inconsistente de `getattr(..., 0)`.
+- **Import duplicado en `detection_worker.py`**: Se eliminó la importación doble de `PyQt6.QtCore`.
+
+---
+
 ## [0.8.0] - 2026-02-09
 
 ### ✨ Agregado (Added)

@@ -20,7 +20,6 @@ class BaseWorker(QThread):
         self.logger = logging.getLogger(f"DeepVision.{name}")
 
     def run(self):
-        print("🚀 [DEBUG] EL WORKER HA ARRANCADO. INICIANDO BUCLE...")
         self.logger.info(f"Starting {self.name} thread...")
         try:
             self.work()
@@ -42,8 +41,11 @@ class BaseWorker(QThread):
 
     def stop(self):
         """
-        Signals the worker to stop.
+        Signals the worker to stop. Waits up to 5 s; force-terminates if stuck.
         """
         self.logger.info(f"Stopping {self.name}...")
         self.is_running = False
-        self.wait()
+        if not self.wait(5000):  # 5-second timeout
+            self.logger.warning(f"{self.name} did not stop in time — forcing termination.")
+            self.terminate()
+            self.wait()

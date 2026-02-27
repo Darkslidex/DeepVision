@@ -21,7 +21,13 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QFont, QImage, QPixmap
 from config.settings import Settings
 import cv2
-import winsound
+
+# winsound is Windows-only; import conditionally to keep the app portable
+try:
+    import winsound
+    WINSOUND_AVAILABLE = True
+except ImportError:
+    WINSOUND_AVAILABLE = False
 
 try:
     from ui.overlay import VideoOverlay
@@ -253,7 +259,12 @@ class ConfigDialog(QDialog):
         self.reduction_time_input.setEnabled(checked)
 
     def check_password(self):
-        if self.pass_input.text() == "admin123":
+        import hashlib
+        from data.db import DBManager
+        entered = self.pass_input.text()
+        entered_hash = hashlib.sha256(entered.encode("utf-8")).hexdigest()
+        stored_hash = DBManager().get_settings("admin_password_hash", "")
+        if entered_hash and entered_hash == stored_hash:
             self.auth_passed = True
             self.init_settings_ui()
         else:
@@ -520,13 +531,6 @@ class MainWindow(QMainWindow):
         
     # ...
 
-    def setup_ui(self):
-        # ...
-        self.overlay = VideoOverlay()
-        self.overlay.roi_drawn.connect(self.on_roi_drawn) # Connect locally
-        self.video_stack.addWidget(self.overlay)
-        # ...
-
     @pyqtSlot(list)
     def on_roi_drawn(self, ui_points):
         """Maps UI coordinates to Image coordinates and emits signal."""
@@ -560,7 +564,6 @@ class MainWindow(QMainWindow):
             
             mapped_points.append((ix, iy))
         
-        print(f"DEBUG: ROI Mapped {ui_points} -> {mapped_points}")
         self.roi_updated.emit(mapped_points)
 
     @pyqtSlot(object)
@@ -619,7 +622,8 @@ class MainWindow(QMainWindow):
                     self.camera_list.set_active_camera(self.last_active_url)
 
         except Exception as e:
-            print(f"Error updating frame: {e}")
+            import logging
+            logging.getLogger("DeepVision.UI").error(f"Error updating frame: {e}")
 
     def apply_styles(self):
         # Industrial Dark Mode (PROFESSIONAL DEFAULT)
@@ -857,50 +861,37 @@ class MainWindow(QMainWindow):
         Stops user interaction until acknowledged.
         """
         self.log_event("ADVERTENCIA", f"Bloqueo por {warning_type}")
-        
-        # Play Sound
-        if self.sound_enabled:
-            winsound.Beep(1000, 500) # Longer beep
-            
+
+        # Play Sound (Windows only)
+        if self.sound_enabled and WINSOUND_AVAILABLE:
+            winsound.Beep(1000, 500)
+
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("⚠️ LLAMADO DE ATENCIÓN ⚠️")
         msg_box.setText(message)
         msg_box.setIcon(QMessageBox.Icon.Warning)
-        
-        # Custom Button
+
         btn_accept = msg_box.addButton("Aceptar y Continuar", QMessageBox.ButtonRole.AcceptRole)
         msg_box.setDefaultButton(btn_accept)
-        
-        # Make it really obvious
+
         msg_box.setStyleSheet("""
             QMessageBox { background-color: #330000; color: white; }
             QLabel { color: white; font-size: 14px; font-weight: bold; }
             QPushButton { background-color: #d32f2f; color: white; border: 2px solid white; padding: 10px; font-weight: bold; }
             QPushButton:hover { background-color: #b71c1c; }
         """)
-        
-        # BLOCKING CALL
+
+        # BLOCKING CALL — waits for user to click
         msg_box.exec()
-        
-        # On Resume
+
         self.log_event("SISTEMA", "Usuario confirmó advertencia. Reanudando...")
-        
-        # Tell Logic to resume
-        # We need to access LogicWorker via Controller
-        if hasattr(self, 'controller') and self.controller.logic_worker:
-            self.controller.logic_worker.resume_from_warning(warning_type)
-        else:
-            # Fallback if controller not attached directly (it's in main.py)
-            # But wait, controller signal connects to this. LogicWorker is in Controller.
-            # We need a way to signal back. 
-            # Ideally MainWindow emits a signal "warning_accepted" -> LogicWorker.resume
-            # But direct call is faster if we have reference.
-            # Let's emit a signal from MainWindow that main.py connects to LogicWorker
-            self.warning_accepted_signal.emit(warning_type)
-            self.roi_btn.setStyleSheet("background-color: #c62828;")
+
+        # Signal LogicWorker to resume (connected in main.py)
+        self.warning_accepted_signal.emit(warning_type)
 
     def log_event(self, time_str, message):
-        print(f"[{time_str}] {message}") # Mirror to console
+        import logging
+        logging.getLogger("DeepVision.UI").info(f"[{time_str}] {message}")
         row = self.log_table.rowCount()
         self.log_table.insertRow(row)
         self.log_table.setItem(row, 0, QTableWidgetItem(time_str))
@@ -984,15 +975,12 @@ class MainWindow(QMainWindow):
             final_text = f"⚠ ADVERTENCIA ({count_str})"
             self.overlay.set_warning_status(final_text)
             
-            # Optional: Small beep
-            if self.sound_enabled:
+            # Optional: Small beep (Windows only)
+            if self.sound_enabled and WINSOUND_AVAILABLE:
                 import threading
-                def play_warning_sound():
-                    try:
-                         import winsound
-                         winsound.Beep(800, 100)
-                    except: pass
-                threading.Thread(target=play_warning_sound, daemon=True).start()
+                threading.Thread(
+                    target=lambda: winsound.Beep(800, 100), daemon=True
+                ).start()
             return
 
         # 3. Handle Major Alarms (CRITICAL / ALARM)
@@ -1009,15 +997,12 @@ class MainWindow(QMainWindow):
         self.overlay.set_alert(alert_text, color)
 
         
-        # Sound Alert
-        if self.sound_enabled:
+        # Sound Alert (Windows only)
+        if self.sound_enabled and WINSOUND_AVAILABLE:
             import threading
-            def play_sound():
-                try:
-                    winsound.Beep(1000, 200)
-                except:
-                    pass
-            threading.Thread(target=play_sound, daemon=True).start()
+            threading.Thread(
+                target=lambda: winsound.Beep(1000, 200), daemon=True
+            ).start()
 
 
         
