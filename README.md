@@ -1,8 +1,10 @@
-# DeepVision - Sistema Inteligente de Monitoreo de Operadores
+# DeepVision — Sistema Inteligente de Monitoreo de Operadores
 
-**DeepVision** es una solución de visión por computadora de alto rendimiento diseñada para monitorear en tiempo real el estado y comportamiento de operadores en entornos críticos. Utiliza modelos de Inteligencia Artificial de vanguardia para detectar fatiga, distracción, uso de celular, abandono de puesto y aglomeraciones.
+**DeepVision es una estación de escritorio (Windows, PyQt6) que vigila en tiempo real a un operador en su puesto de trabajo usando una cámara (webcam o RTSP) e inteligencia artificial local.** Sobre una Región de Interés (ROI) que el usuario dibuja, detecta y alarma por: uso de celular, abandono del puesto, exceso de aforo, objetos peligrosos (cuchillo/tijera), fatiga (cabeceo) e inactividad. Cuando una alarma escala, envía al supervisor un mensaje con foto de evidencia por Telegram, registra el evento en SQLite y lo muestra en un dashboard "Industrial Dark Mode".
 
-![DeepVision UI](docs/screenshot.png) <!-- Placeholder for screenshot -->
+Fue creado como producto de seguridad electrónica para puestos críticos —salas de monitoreo, call centers, recepciones— donde importa saber si el operador está presente, atento y sin distracciones, sin depender de la nube: toda la inferencia corre en la máquina local.
+
+> **Estado:** funcional end-to-end. Es un producto en desarrollo activo; ver la sección [Estado del proyecto](#-estado-del-proyecto) para qué está implementado y qué es deuda conocida.
 
 ---
 
@@ -14,8 +16,8 @@
 - **Monitor de Inactividad**: Alerta si el operador no realiza movimientos significativos en su puesto durante 30 segundos.
 - **Visualización Esquelética**: Renderizado de puntos clave (nariz, hombros) en el overlay para feedback visual.
 
-### 📱 Detección de Objetos y Comportamiento (YOLOv11)
-- Detección precisa de **personas** y **celulares** utilizando modelos YOLO optimizados.
+### 📱 Detección de Objetos y Comportamiento (YOLO11)
+- Detección precisa de **personas** y **celulares** utilizando el modelo `yolo11m.pt` (Ultralytics).
 - **Tres políticas de uso de celular**:
   - **Estricta**: Tolerancia cero (dispara en <0.1 s de detección).
   - **Continua (T1)**: Alerta tras uso ininterrumpido superado el tiempo configurado.
@@ -126,9 +128,9 @@ python main.py
 1. Abre **⚙ Configuración** → ingresa contraseña de administrador.
 2. En la sección **Notificaciones Telegram**, pega el token y el Chat ID.
 3. Haz clic en **▶ Probar Conexión** — deberías recibir un mensaje de prueba en Telegram.
-4. Guarda. Las credenciales quedan persistidas en la base de datos.
+4. Guarda. Las credenciales se guardan en la base de datos y aplican durante la sesión en curso.
 
-> 💡 Las credenciales de la base de datos tienen prioridad sobre las variables de entorno. Si cambias el token desde la UI, no necesitas modificar el entorno.
+> ⚠️ **Deuda conocida:** la recarga de configuración desde la base de datos al reiniciar (`Settings.sync_from_db()`) está definida pero **no se invoca**. En la práctica, tras reiniciar la aplicación solo se aplican las **variables de entorno** (`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`); lo configurado por la UI vale únicamente en esa sesión. Para uso persistente entre reinicios, usar la Opción A (variables de entorno).
 
 ---
 
@@ -159,11 +161,11 @@ DeepVision/
 │   └── settings.py              # Configuración Singleton (defaults + sync desde DB)
 ├── core/
 │   ├── ai/
-│   │   ├── detection_worker.py  # YOLOv11 (personas, celulares, armas)
-│   │   └── biometric_worker.py  # MediaPipe (EAR/MAR — en desarrollo)
+│   │   ├── detection_worker.py  # YOLO11 (personas, celulares, armas) + fatiga por pose
+│   │   └── biometric_worker.py  # MediaPipe EAR/MAR — CÓDIGO MUERTO (placeholders, no se instancia)
 │   ├── logic/
 │   │   ├── logic_worker.py      # Lógica de negocio, alarmas y captura de evidencia
-│   │   └── leaky_bucket.py      # Algoritmo Leaky Bucket
+│   │   └── leaky_bucket.py      # Algoritmo Leaky Bucket (no usado; la política T2/T3 está inline en logic_worker)
 │   ├── controller.py            # Orquestador del sistema
 │   ├── notification_service.py  # Dispatcher de notificaciones (Telegram)
 │   └── worker.py                # BaseWorker (ciclo de vida de hilos)
@@ -171,18 +173,34 @@ DeepVision/
 │   ├── db.py                    # DBManager SQLite (Singleton, thread-safe)
 │   └── evidence/                # Capturas JPEG generadas automáticamente por alarma
 ├── services/
-│   └── telegram.py              # TelegramService — Bot API (sendMessage / sendPhoto)
+│   ├── telegram.py              # TelegramService — Bot API (sendMessage / sendPhoto)
+│   └── whatsapp.py              # No usado (envío comentado, sin cablear)
 ├── ui/
 │   ├── main_window.py           # Ventana principal, diálogos y dashboard
 │   └── overlay.py               # Widget de superposición de video y ROI
-├── assets/
-│   └── models/                  # Modelos YOLO (.pt)
+├── yolo11m.pt · yolov8n-pose.pt # Modelos YOLO en la raíz del proyecto
 ├── main.py                      # Punto de entrada
 ├── check_environment.py         # Diagnóstico de entorno
 └── setup_deepvision.ps1         # Instalación automática (Windows)
 ```
 
+> **Nota:** la fatiga (cabeceo) se calcula con la heurística *chin-to-chest* sobre `yolov8n-pose`, **no** con MediaPipe. El módulo `biometric_worker.py` (EAR/MAR con MediaPipe) quedó como código muerto: sus cálculos devuelven valores fijos y no se instancia en el controlador.
+
 ---
+
+## 🧭 Estado del proyecto
+
+**Funciona end-to-end:** captura de video (webcam/RTSP) con reconexión básica, detección YOLO recortada por ROI, lógica de alarmas (aforo, celular en 3 políticas, armas, abandono, fatiga por pose, inactividad), sistema de advertencias con "vidas" y modal bloqueante, captura de evidencia JPEG, registro en SQLite y escalado a Telegram con foto.
+
+**Deuda conocida / pendiente:**
+- `core/ai/biometric_worker.py` (MediaPipe EAR/MAR): **código muerto**, no se usa. La fatiga real es por pose YOLO.
+- `services/whatsapp.py`: el envío está comentado; no está cableado a las notificaciones.
+- `core/logic/leaky_bucket.py`: importado pero no usado (la política acumulada está reimplementada inline).
+- `Settings.sync_from_db()`: nunca se invoca → la configuración guardada en DB no se recarga al reiniciar (ver nota de Telegram).
+- Cifrado de DB (SQLCipher): solo mencionado en comentarios; la base es SQLite **sin cifrar**.
+- `requirements.txt` lista `argon2-cffi`, pero el hashing de la contraseña admin usa **SHA-256** (`hashlib`), no Argon2.
+- `tests/verify_logic.py` está desactualizado: referencia atributos (`whatsapp_service`, `leaky_bucket`) que el `SystemController` actual ya no tiene.
+- Versionado inconsistente: `config/settings.py` declara `1.0.0` mientras README/CHANGELOG van por `v0.9.0`.
 
 ## 🛡️ Licencia
 
