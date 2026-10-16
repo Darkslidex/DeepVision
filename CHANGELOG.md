@@ -25,7 +25,7 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 ## [0.8.1] - 2026-02-27
 
 ### 🔒 Seguridad (Security)
-- **Contraseña de administrador hasheada**: La contraseña ya no se compara en texto plano. Ahora se almacena como digest SHA-256 en la base de datos y se configura mediante la variable de entorno `ADMIN_PASSWORD` (fallback: `admin123`). El texto plano nunca reside en el código fuente.
+- **Contraseña de administrador hasheada**: La contraseña ya no se compara en texto plano. Ahora se almacena como digest SHA-256 en la base de datos y se configura mediante la variable de entorno `ADMIN_PASSWORD`. El texto plano nunca reside en el código fuente.
 - **Eliminado decorador `@dataclass` de `Settings`**: Era incompatible con el patrón Singleton y podía generar un `__init__` con comportamiento inesperado.
 
 ### 🐛 Corregido (Fixed)

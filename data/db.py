@@ -93,16 +93,20 @@ class DBManager:
                 ''')
                 
                 # Seed default admin password hash if not already present.
-                # Default password is read from env var ADMIN_PASSWORD (fallback: "admin123").
+                # Password is read from env var ADMIN_PASSWORD. No fallback: if it is not set,
+                # no hash is seeded and the settings panel stays locked (fail closed).
                 # Stored as SHA-256 hex digest so plaintext is never in the DB.
                 cursor.execute("SELECT value FROM settings WHERE key = 'admin_password_hash'")
                 if not cursor.fetchone():
-                    default_password = os.getenv("ADMIN_PASSWORD", "admin123")
-                    default_hash = hashlib.sha256(default_password.encode("utf-8")).hexdigest()
-                    cursor.execute(
-                        "INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)",
-                        (default_hash,)
-                    )
+                    default_password = os.getenv("ADMIN_PASSWORD")
+                    if default_password:
+                        default_hash = hashlib.sha256(default_password.encode("utf-8")).hexdigest()
+                        cursor.execute(
+                            "INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)",
+                            (default_hash,)
+                        )
+                    else:
+                        self.logger.warning("ADMIN_PASSWORD not set: settings panel locked until it is defined.")
 
                 conn.commit()
                 conn.close()

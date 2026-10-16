@@ -140,16 +140,11 @@ python main.py
 La contraseña **nunca se almacena en texto plano**. Al inicializar la base de datos, se guarda el hash SHA-256 de la contraseña configurada mediante la variable de entorno `ADMIN_PASSWORD`.
 
 ```bash
-# Opción A: variable de entorno (recomendado para producción)
 set ADMIN_PASSWORD=mi_contrasena_segura
-python main.py
-
-# Opción B: sin variable de entorno (solo para desarrollo)
-# La contraseña por defecto es "admin123"
 python main.py
 ```
 
-> ⚠️ **Importante**: Cambie la contraseña por defecto antes de desplegar en producción configurando la variable `ADMIN_PASSWORD`.
+> ⚠️ **Sin contraseña por defecto**: si `ADMIN_PASSWORD` no está definida, no se crea ningún hash y el panel de configuración queda bloqueado (falla cerrado).
 
 ---
 
