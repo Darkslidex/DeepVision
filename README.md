@@ -1,202 +1,173 @@
-# DeepVision — Sistema Inteligente de Monitoreo de Operadores
+# DeepVision — Operator Monitoring with Local Computer Vision
 
-**DeepVision es una estación de escritorio (Windows, PyQt6) que vigila en tiempo real a un operador en su puesto de trabajo usando una cámara (webcam o RTSP) e inteligencia artificial local.** Sobre una Región de Interés (ROI) que el usuario dibuja, detecta y alarma por: uso de celular, abandono del puesto, exceso de aforo, objetos peligrosos (cuchillo/tijera), fatiga (cabeceo) e inactividad. Cuando una alarma escala, envía al supervisor un mensaje con foto de evidencia por Telegram, registra el evento en SQLite y lo muestra en un dashboard "Industrial Dark Mode".
+**A Windows desktop app (PyQt6) that watches an operator's workstation in real time through a webcam or RTSP camera, with all AI inference running locally.** Inside a Region of Interest (ROI) drawn by the user, it detects and raises alarms for phone use, leaving the post, overcrowding, dangerous objects (knife or scissors), fatigue (head nodding) and inactivity. When an alarm escalates, it sends the supervisor a Telegram message with a photo as evidence, logs the event in SQLite and shows it on an "Industrial Dark Mode" dashboard.
 
-Fue creado como producto de seguridad electrónica para puestos críticos —salas de monitoreo, call centers, recepciones— donde importa saber si el operador está presente, atento y sin distracciones, sin depender de la nube: toda la inferencia corre en la máquina local.
+**Why it exists:** in critical posts such as monitoring rooms, call centers and reception desks, what matters is whether the operator is present, alert and not distracted. DeepVision answers that without sending video to the cloud.
 
-> **Estado:** funcional end-to-end. Es un producto en desarrollo activo; ver la sección [Estado del proyecto](#-estado-del-proyecto) para qué está implementado y qué es deuda conocida.
-
----
-
-## 🚀 Características Principales
-
-### 👁️ Detección Biométrica (Fatiga y Distracción)
-- **Modelo de Postura (Pose Estimation)**: Uso de `yolov8n-pose` para análisis esquelético en tiempo real.
-- **Detección de Micro-sueños (Cabeceo)**: Algoritmo geométrico que alerta si la barbilla cae hacia el pecho por tiempo prolongado (>5s).
-- **Monitor de Inactividad**: Alerta si el operador no realiza movimientos significativos en su puesto durante 30 segundos.
-- **Visualización Esquelética**: Renderizado de puntos clave (nariz, hombros) en el overlay para feedback visual.
-
-### 📱 Detección de Objetos y Comportamiento (YOLO11)
-- Detección precisa de **personas** y **celulares** utilizando el modelo `yolo11m.pt` (Ultralytics).
-- **Tres políticas de uso de celular**:
-  - **Estricta**: Tolerancia cero (dispara en <0.1 s de detección).
-  - **Continua (T1)**: Alerta tras uso ininterrumpido superado el tiempo configurado.
-  - **Acumulada (T2/T3)**: Algoritmo *Leaky Bucket* para uso intermitente.
-- **Restricción por ROI**: Análisis focalizado en la Región de Interés dibujada por el usuario.
-
-### 🧠 Lógica de Negocio Avanzada
-- **Detección de Abandono**: Alerta si el puesto de trabajo (ROI) permanece vacío por un tiempo configurable.
-- **Control de Aforo (Overcrowding)**: Alerta si se detectan más personas de las permitidas.
-- **Sistema de Advertencias con "Vidas"**: Bloqueo modal progresivo antes de escalar al supervisor.
-- **Alertas Multinivel**: Clasificación de eventos en `WARNING`, `ALARM` y `CRITICAL`.
-- **Detección de Armas**: Alerta inmediata y crítica ante la detección de objetos peligrosos (cuchillos/tijeras).
-
-### 📲 Notificaciones Telegram
-- **Alerta con Foto**: Cada alarma escalada envía al supervisor una captura del frame activo junto con nivel, tipo y timestamp.
-- **Fallback a texto**: Si el frame no está disponible, se envía el mensaje sin imagen.
-- **Bot Token + Chat ID**: Configurables desde la UI sin reiniciar la aplicación.
-- **Evidencia persistente**: Las capturas se guardan localmente en `data/evidence/<timestamp>_<TIPO>.jpg` y se registran en la base de datos con su ruta.
-- **Prueba de conexión**: Botón **▶ Probar Conexión** en el diálogo de configuración para validar las credenciales antes de entrar en producción.
-
-### 🖥️ Interfaz de Usuario Industrial
-- Dashboard en modo oscuro ("Industrial Dark Mode") para reducir la fatiga visual.
-- **Video Overlay Dinámico**: Visualización de cajas delimitadoras con código de colores.
-- **Panel de Configuración Seguro**: Acceso protegido por contraseña (almacenada como hash SHA-256).
-- **Gestión de Cámaras**: Agregar, seleccionar y eliminar fuentes RTSP desde la barra lateral.
-- **Logs y Persistencia**: Registro histórico de eventos en SQLite con persistencia de configuración.
+**Status:** prototype, functional end to end on a single workstation. See [Project status](#project-status) for what works and the known debt.
 
 ---
 
-## 🛠️ Requisitos del Sistema
+## Features
 
-| Requisito | Mínimo | Recomendado |
+### Fatigue and distraction (pose estimation)
+- **Pose model:** `yolov8n-pose` for real-time skeletal analysis.
+- **Micro-sleep detection (head nodding):** a geometric chin-to-chest heuristic alerts when the head drops for more than 5 seconds.
+- **Inactivity monitor:** alerts when the operator makes no significant movement for 30 seconds.
+- **Skeleton overlay:** key points (nose, shoulders) drawn on the video for visual feedback.
+
+### Objects and behavior (YOLO11)
+- Detection of **people** and **phones** with `yolo11m.pt` (Ultralytics).
+- **Three phone-use policies:**
+  - **Strict:** zero tolerance (fires in under 0.1 s).
+  - **Continuous (T1):** alerts after uninterrupted use exceeds the configured time.
+  - **Accumulated (T2/T3):** leaky-bucket logic for intermittent use.
+- **ROI filtering:** analysis restricted to the polygon drawn by the user.
+
+### Business logic
+- **Abandonment:** alerts when the workstation ROI stays empty for a configurable time.
+- **Overcrowding:** alerts when more people than allowed are detected.
+- **Warnings with "lives":** a progressive blocking modal before escalating to the supervisor.
+- **Multi-level alerts:** `WARNING`, `ALARM` and `CRITICAL`.
+- **Dangerous objects:** immediate critical alert on knives or scissors.
+
+### Telegram notifications
+- **Alert with photo:** each escalated alarm sends a capture of the current frame with level, type and timestamp.
+- **Text fallback:** if no frame is available, the message is sent without an image.
+- **Persistent evidence:** captures are saved to `data/evidence/<timestamp>_<TYPE>.jpg` and their path is recorded in the database.
+- **Connection test:** a **Test connection** button validates credentials before going live.
+
+### Industrial UI
+- Dark dashboard to reduce eye strain.
+- Dynamic video overlay with color-coded bounding boxes.
+- Password-protected settings panel.
+- RTSP camera management from the sidebar.
+- Event history and settings persisted in SQLite.
+
+---
+
+## Requirements
+
+| Requirement | Minimum | Recommended |
 |---|---|---|
 | **OS** | Windows 10 | Windows 11 |
 | **Python** | 3.9 | 3.11 |
 | **CPU** | Intel i5 / Ryzen 5 | Intel i7 / Ryzen 7 |
-| **GPU** | — (CPU mode) | NVIDIA con CUDA 12.x |
+| **GPU** | none (CPU mode) | NVIDIA with CUDA 12.x |
 | **RAM** | 8 GB | 16 GB |
-| **Cámara** | Webcam USB | Cámara IP (RTSP) |
+| **Camera** | USB webcam | IP camera (RTSP) |
 
 ---
 
-## 📦 Instalación
+## Installation
 
-### 1. Clonar el repositorio
 ```bash
-git clone https://github.com/tu-org/deepvision.git
-cd deepvision
+git clone https://github.com/Darkslidex/DeepVision.git
+cd DeepVision
 ```
 
-### 2. Instalación automática (recomendada)
-Ejecute el script de PowerShell para crear el entorno virtual e instalar dependencias con soporte GPU:
+Automatic setup (creates the virtual environment and installs dependencies with GPU support):
 ```powershell
 .\setup_deepvision.ps1
 ```
 
-### 3. Verificación del entorno
-Confirme que CUDA, modelos y librerías están correctamente instalados:
+Check CUDA, models and libraries:
 ```bash
 python check_environment.py
 ```
 
----
-
-## ▶️ Uso
+## Usage
 
 ```bash
+set ADMIN_PASSWORD=your_secure_password
 python main.py
 ```
 
-### Configuración inicial
-1. Al iniciar, si no se detecta cámara, haga clic en **⚙ Configuración**.
-2. Ingrese la contraseña de administrador (ver sección **Seguridad** más abajo).
-3. Configure la **URL RTSP** de su cámara o use `0` para webcam local.
-4. Haga clic en **⛛ Dibujar ROI** y marque el área de trabajo con el mouse:
-   - **Click izquierdo**: agregar punto.
-   - **Doble click**: cerrar y confirmar el polígono (mínimo 3 puntos).
+1. If no camera is detected, click **⚙ Configuración** (settings).
+2. Enter the admin password (see [Security](#security)).
+3. Set the camera **RTSP URL**, or `0` for a local webcam.
+4. Click **Dibujar ROI** (draw ROI) and mark the work area: left click adds a point, double click closes the polygon (minimum 3 points).
+
+The interface is in Spanish.
 
 ---
 
-## 📲 Configuración de Telegram
+## Telegram setup
 
-> Setup único de ~5 minutos. Una vez configurado, cada alarma escalada llega como mensaje con foto al chat del supervisor.
+One-time setup of about 5 minutes.
 
-### Paso 1 — Crear el bot
-1. Abre Telegram y busca **@BotFather**.
-2. Envía `/newbot`, elige nombre y usuario.
-3. Copia el **token** que te entrega (formato `123456789:ABCdef...`).
+1. In Telegram, open **@BotFather**, send `/newbot` and copy the **token**.
+2. Send any message to your new bot, open `https://api.telegram.org/bot<TOKEN>/getUpdates` and copy the `"id"` inside `"chat"`: that is your **Chat ID**.
+3. Configure DeepVision:
 
-### Paso 2 — Obtener tu Chat ID
-1. Manda cualquier mensaje a tu bot recién creado.
-2. Abre en el navegador:
-   ```
-   https://api.telegram.org/bot<TOKEN>/getUpdates
-   ```
-3. Copia el campo `"id"` dentro de `"chat"` — ese es tu **Chat ID**.
-
-### Paso 3 — Configurar en DeepVision
-
-**Opción A — Variable de entorno (recomendado para producción):**
+**Option A: environment variables (recommended)**
 ```bash
-set TELEGRAM_BOT_TOKEN=123456789:ABCdef...
-set TELEGRAM_CHAT_ID=987654321
+set TELEGRAM_BOT_TOKEN=<your-token>
+set TELEGRAM_CHAT_ID=<your-chat-id>
 python main.py
 ```
 
-**Opción B — Desde la UI:**
-1. Abre **⚙ Configuración** → ingresa contraseña de administrador.
-2. En la sección **Notificaciones Telegram**, pega el token y el Chat ID.
-3. Haz clic en **▶ Probar Conexión** — deberías recibir un mensaje de prueba en Telegram.
-4. Guarda. Las credenciales se guardan en la base de datos y aplican durante la sesión en curso.
+**Option B: from the UI.** Open settings, enter the admin password, paste the token and Chat ID under Telegram notifications, click **▶ Probar Conexión** and save.
 
-> ⚠️ **Deuda conocida:** la recarga de configuración desde la base de datos al reiniciar (`Settings.sync_from_db()`) está definida pero **no se invoca**. En la práctica, tras reiniciar la aplicación solo se aplican las **variables de entorno** (`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`); lo configurado por la UI vale únicamente en esa sesión. Para uso persistente entre reinicios, usar la Opción A (variables de entorno).
+> **Known debt:** reloading settings from the database on restart (`Settings.sync_from_db()`) is defined but never called. After a restart only the environment variables apply; values entered in the UI last for the current session only. Use Option A for persistent setup.
 
 ---
 
-## 🔒 Seguridad
+## Security
 
-### Contraseña de administrador
-La contraseña **nunca se almacena en texto plano**. Al inicializar la base de datos, se guarda el hash SHA-256 de la contraseña configurada mediante la variable de entorno `ADMIN_PASSWORD`.
-
-```bash
-set ADMIN_PASSWORD=mi_contrasena_segura
-python main.py
-```
-
-> ⚠️ **Sin contraseña por defecto**: si `ADMIN_PASSWORD` no está definida, no se crea ningún hash y el panel de configuración queda bloqueado (falla cerrado).
+- **No default password.** The admin password comes from the `ADMIN_PASSWORD` environment variable. If it is not set, no password hash is created and the settings panel stays locked (fail closed).
+- **No plaintext.** The database stores a SHA-256 hash of the password, never the password itself.
+- **Local inference.** Video and detections never leave the machine; only escalated alerts go to Telegram.
+- **Secrets out of the code.** Telegram credentials are read from environment variables.
 
 ---
 
-## 📂 Estructura del Proyecto
+## Project structure
 
 ```
 DeepVision/
 ├── config/
-│   └── settings.py              # Configuración Singleton (defaults + sync desde DB)
+│   └── settings.py              # Singleton settings (defaults + sync from DB)
 ├── core/
 │   ├── ai/
-│   │   ├── detection_worker.py  # YOLO11 (personas, celulares, armas) + fatiga por pose
-│   │   └── biometric_worker.py  # MediaPipe EAR/MAR — CÓDIGO MUERTO (placeholders, no se instancia)
+│   │   ├── detection_worker.py  # YOLO11 (people, phones, weapons) + pose-based fatigue
+│   │   └── biometric_worker.py  # MediaPipe EAR/MAR: dead code, never instantiated
 │   ├── logic/
-│   │   ├── logic_worker.py      # Lógica de negocio, alarmas y captura de evidencia
-│   │   └── leaky_bucket.py      # Algoritmo Leaky Bucket (no usado; la política T2/T3 está inline en logic_worker)
-│   ├── controller.py            # Orquestador del sistema
-│   ├── notification_service.py  # Dispatcher de notificaciones (Telegram)
-│   └── worker.py                # BaseWorker (ciclo de vida de hilos)
+│   │   ├── logic_worker.py      # Business logic, alarms and evidence capture
+│   │   └── leaky_bucket.py      # Unused: the accumulated policy is inline in logic_worker
+│   ├── controller.py            # System orchestrator
+│   ├── notification_service.py  # Notification dispatcher (Telegram)
+│   └── worker.py                # BaseWorker (thread lifecycle, QThreads)
 ├── data/
-│   ├── db.py                    # DBManager SQLite (Singleton, thread-safe)
-│   └── evidence/                # Capturas JPEG generadas automáticamente por alarma
+│   └── db.py                    # SQLite DBManager (singleton, thread-safe)
 ├── services/
-│   ├── telegram.py              # TelegramService — Bot API (sendMessage / sendPhoto)
-│   └── whatsapp.py              # No usado (envío comentado, sin cablear)
+│   ├── telegram.py              # Telegram Bot API (sendMessage / sendPhoto)
+│   └── whatsapp.py              # Not wired (sending is commented out)
 ├── ui/
-│   ├── main_window.py           # Ventana principal, diálogos y dashboard
-│   └── overlay.py               # Widget de superposición de video y ROI
-├── yolo11m.pt · yolov8n-pose.pt # Modelos YOLO en la raíz del proyecto
-├── main.py                      # Punto de entrada
-├── check_environment.py         # Diagnóstico de entorno
-└── setup_deepvision.ps1         # Instalación automática (Windows)
+│   ├── main_window.py           # Main window, dialogs and dashboard
+│   └── overlay.py               # Video and ROI overlay widget
+├── yolo11m.pt · yolov8n-pose.pt # YOLO models
+├── main.py                      # Entry point
+├── check_environment.py         # Environment diagnostics
+└── setup_deepvision.ps1         # Automatic setup (Windows)
 ```
-
-> **Nota:** la fatiga (cabeceo) se calcula con la heurística *chin-to-chest* sobre `yolov8n-pose`, **no** con MediaPipe. El módulo `biometric_worker.py` (EAR/MAR con MediaPipe) quedó como código muerto: sus cálculos devuelven valores fijos y no se instancia en el controlador.
 
 ---
 
-## 🧭 Estado del proyecto
+## Project status
 
-**Funciona end-to-end:** captura de video (webcam/RTSP) con reconexión básica, detección YOLO recortada por ROI, lógica de alarmas (aforo, celular en 3 políticas, armas, abandono, fatiga por pose, inactividad), sistema de advertencias con "vidas" y modal bloqueante, captura de evidencia JPEG, registro en SQLite y escalado a Telegram con foto.
+**Works end to end:** video capture (webcam or RTSP) with basic reconnection, ROI-cropped YOLO detection, alarm logic (overcrowding, phone use in 3 policies, weapons, abandonment, pose-based fatigue, inactivity), the warning system with "lives" and a blocking modal, JPEG evidence capture, SQLite logging and Telegram escalation with photo.
 
-**Deuda conocida / pendiente:**
-- `core/ai/biometric_worker.py` (MediaPipe EAR/MAR): **código muerto**, no se usa. La fatiga real es por pose YOLO.
-- `services/whatsapp.py`: el envío está comentado; no está cableado a las notificaciones.
-- `core/logic/leaky_bucket.py`: importado pero no usado (la política acumulada está reimplementada inline).
-- `Settings.sync_from_db()`: nunca se invoca → la configuración guardada en DB no se recarga al reiniciar (ver nota de Telegram).
-- Cifrado de DB (SQLCipher): solo mencionado en comentarios; la base es SQLite **sin cifrar**.
-- `requirements.txt` lista `argon2-cffi`, pero el hashing de la contraseña admin usa **SHA-256** (`hashlib`), no Argon2.
-- `tests/verify_logic.py` está desactualizado: referencia atributos (`whatsapp_service`, `leaky_bucket`) que el `SystemController` actual ya no tiene.
-- Versionado inconsistente: `config/settings.py` declara `1.0.0` mientras README/CHANGELOG van por `v0.9.0`.
+**Known debt:**
+- `core/ai/biometric_worker.py` (MediaPipe EAR/MAR) is dead code; real fatigue detection uses YOLO pose.
+- `services/whatsapp.py` is not wired to notifications.
+- `core/logic/leaky_bucket.py` is imported but unused.
+- `Settings.sync_from_db()` is never called, so settings saved in the DB are not reloaded on restart.
+- The SQLite database is **not encrypted**; SQLCipher is only mentioned in comments.
+- The admin password uses an unsalted SHA-256 hash; `argon2-cffi` is listed in `requirements.txt` but not used yet. Moving to Argon2id is the next security fix.
+- `tests/verify_logic.py` is outdated: it references attributes the current `SystemController` no longer has. Its last recorded run (`tests/results.txt`) passed 5 logic scenarios (normal operation, abandonment, overcrowding, phone inside and outside the ROI).
+- Version numbers are inconsistent: `config/settings.py` says `1.0.0` while the CHANGELOG is at `v0.9.0`.
 
-## 🛡️ Licencia
+## License
 
-Propiedad de **Félix Lezama**. Todos los derechos reservados.
+Owned by **Félix Lezama**. All rights reserved.
