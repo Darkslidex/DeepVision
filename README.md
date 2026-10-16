@@ -35,7 +35,7 @@
 - **Alert with photo:** each escalated alarm sends a capture of the current frame with level, type and timestamp.
 - **Text fallback:** if no frame is available, the message is sent without an image.
 - **Persistent evidence:** captures are saved to `data/evidence/<timestamp>_<TYPE>.jpg` and their path is recorded in the database.
-- **Connection test:** a **Test connection** button validates credentials before going live.
+- **Connection test:** a **▶ Probar Conexión** (test connection) button validates credentials before going live.
 
 ### Industrial UI
 - Dark dashboard to reduce eye strain.
